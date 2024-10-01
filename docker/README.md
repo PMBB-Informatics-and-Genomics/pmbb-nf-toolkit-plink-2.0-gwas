@@ -27,8 +27,7 @@ Purpose of PLINK2 GWAS Docker Container / Singularity Image: provides all the co
 
 ## Command Used to Build Singularity Image
 * Useful for systems that do not support Docker.
-* This command pulls Docker container from a publicly available site (Dockerhub or Google Container Registry) and converts it to a Singularity image remote/remote/remote/remote/remote/remote/remote/remote/remote/remote/remote/locally.
-<code>singularity build plink2_gwas.sif docker://pennbiobank/plink2_gwas:latest</code>
+* This command pulls Docker container from a publicly available site (Dockerhub or Google Container Registry) and converts it to a Singularity image remote/locally.
 
 ## Commands Used to Pull Docker Image
 * From Dockerhub: <code>docker pull pennbiobank/plink2_gwas:latest</code>
