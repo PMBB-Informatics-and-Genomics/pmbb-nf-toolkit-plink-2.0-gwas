@@ -4,7 +4,7 @@ Purpose of PLINK2 GWAS Docker Container / Singularity Image: provides all the co
 
 ## Relevant Container Locations
 * Docker container on Docker Hub: <code>pennbiobank/plink2_gwas:latest</code>
-* Docker container on Google Container Registry: <code>gcr.io/path/to/directory/code>
+* Docker container on Google Container Registry: <code>gcr.io/ritchie-aou-psom-9015/plink2_gwas:latest</code>
 * Singularity image: <code>plink2_gwas.sif</code>
 
 ## Using the PLINK2 GWAS Docker Container / Singularity Image in the Nextflow Pipeline
@@ -23,13 +23,13 @@ Purpose of PLINK2 GWAS Docker Container / Singularity Image: provides all the co
 ### Building Docker Image and Pushing to my Dockerhub Account
 <code>docker buildx build --platform  linux/amd64 --push -t pennbiobank/plink2_gwas:latest .</code>
 ### Building Docker Image and Pushing to Public Google Container Registry
-<code>docker buildx build --platform  linux/amd64 --push -t gcr.io/path/to/directory/plink2_gwas:latest .</code>
+<code>docker buildx build --platform  linux/amd64 --push -t gcr.io/ritchie-aou-psom-9015/plink2_gwas:latest .</code>
 
 ## Command Used to Build Singularity Image
 * Useful for systems that do not support Docker.
-* This command pulls Docker container from a publicly available site (Dockerhub or Google Container Registry) and converts it to a Singularity image remote/remote/remote/remote/remote/remote/remote/remote/remote/remote/remote/locally.
+* This command pulls Docker container from a publicly available site (Dockerhub or Google Container Registry) and converts it to a Singularity image locally.
 <code>singularity build plink2_gwas.sif docker://pennbiobank/plink2_gwas:latest</code>
 
 ## Commands Used to Pull Docker Image
 * From Dockerhub: <code>docker pull pennbiobank/plink2_gwas:latest</code>
-* From Google Container Registry: <code>docker pull gcr.io/path/to/directory/code>
+* From Google Container Registry: <code>docker pull gcr.io/ritchie-aou-psom-9015/plink2_gwas:latest</code>

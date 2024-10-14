@@ -16,7 +16,7 @@ RUN apt-get update \
     # move plink2 executable to $PATH
     && mv plink2 /usr/bin \
     # install biofilter
-    && wget https://github.com/path/to/directory/biofilter-${BIOFILTER_VERSION}.tar.gz -O biofilter.tar.gz \
+    && wget https://github.com/RitchieLab/biofilter/releases/download/Biofilter-${BIOFILTER_VERSION}/biofilter-${BIOFILTER_VERSION}.tar.gz -O biofilter.tar.gz \
     && tar -zxvf biofilter.tar.gz --strip-components=1 -C /app/ \
     && /opt/conda/bin/python setup.py install \
     && chmod a+rx /app/biofilter.py \
@@ -24,7 +24,7 @@ RUN apt-get update \
     && conda install -y -n base -c conda-forge scikit-learn dominate wget libtiff conda-build scipy pandas seaborn matplotlib numpy apsw sqlite \
     && conda clean --all --yes \
     # install NEAT plots
-    && git clone https://github.com/path/to/directory/NEAT-Plots.git \
+    && git clone https://github.com/PMBB-Informatics-and-Genomics/NEAT-Plots.git \
     && mv NEAT-Plots/manhattan-plot/ /app/ \
     && conda develop /app/manhattan-plot/ \
     # remove NEAT-plots directory and biofilter tarball

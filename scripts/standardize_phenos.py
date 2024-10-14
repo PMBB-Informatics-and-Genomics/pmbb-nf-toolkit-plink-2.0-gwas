@@ -77,8 +77,8 @@ print(f'Total Number of Columns: {df.shape[1]}\nNumber of category columns: {len
 # I don't thinK we should scale the entire dataset since these are targets, not features...
 # df[quant_columns] = scaler.fit_transform(df[quant_columns])
 
-# instead Let's scale each column individually (path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/Apply not working...)
-# df[quant_columns] = df[quant_columns].path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/apply(lambda x: StandardScaler().fit_transform(x))
+# instead Let's scale each column individually (Apply not working...)
+# df[quant_columns] = df[quant_columns].apply(lambda x: StandardScaler().fit_transform(x))
 # for col in quant_columns:
 #     df[col] = scaler.fit_transform(df[[col]])
 

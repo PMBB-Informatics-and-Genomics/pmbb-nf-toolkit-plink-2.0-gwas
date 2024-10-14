@@ -10,7 +10,7 @@ module load nextflow
 #module load singularity
 
 # Setup
-WDIR="/project/path/to/data/Plink2.0_ZBR"
+WDIR="/path/to/directory/Plink2.0_ZBR"
 cd $WDIR
 
 # full run

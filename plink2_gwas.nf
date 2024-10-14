@@ -247,7 +247,7 @@ process make_pheno_summaries {
 }
 
 process parse_pheno_summary_table {
-    executor 'remote/remote/remote/remote/remote/remote/remote/remote/remote/remote/remote/local'
+    executor 'local'
     input:
         val pheno_table // for executing Groovy code, must be val not path
     output:

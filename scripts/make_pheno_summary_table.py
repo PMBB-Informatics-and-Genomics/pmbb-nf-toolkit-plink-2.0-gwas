@@ -48,7 +48,7 @@ for c in cohorts:
     keep_samples = list(set(samples).intersection(pheno_covars.index).intersection(plink_fam.index))
 
     if len(bin_phenos) > 0:
-        bin_pheno_info = pheno_covars.loc[keep_samples, bin_phenos].path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/apply(lambda x: x.value_counts(), result_type='expand').transpose().rename(columns={0: 'Controls', 1: 'Cases'})
+        bin_pheno_info = pheno_covars.loc[keep_samples, bin_phenos].apply(lambda x: x.value_counts(), result_type='expand').transpose().rename(columns={0: 'Controls', 1: 'Cases'})
         bin_pheno_info['N'] = pheno_covars.loc[keep_samples, bin_phenos].count()
         bin_pheno_info['Prevalence'] = pheno_covars.loc[keep_samples, bin_phenos].mean()
         bin_pheno_info.index.name = 'PHENO'

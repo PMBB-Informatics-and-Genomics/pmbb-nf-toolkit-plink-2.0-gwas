@@ -42,7 +42,7 @@ for f in input_files:
 
 all = pd.concat(dfs)
 print(all)
-all['A2'] = all.path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/path/to/nextflow/apply(lambda x: x['REF'] if x['A1'] == x['ALT'] else x['ALT'], axis=1)
+all['A2'] = all.apply(lambda x: x['REF'] if x['A1'] == x['ALT'] else x['ALT'], axis=1)
 print(all)
 print(all.columns)
 
