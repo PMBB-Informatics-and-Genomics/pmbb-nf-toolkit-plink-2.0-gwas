@@ -7,6 +7,7 @@ def make_arg_parser():
     parser.add_argument('-d', '--data', required=True, help='.csv Phenotype and covariate file')
     parser.add_argument('-c', '--cohort', required=True, help='Cohort to set up')
     parser.add_argument('-s', '--samples', required=True, help='.csv of cohort assignments')
+    parser.add_argument('-r', '--remove', required=False, help='list of related individuals to filter out')
     parser.add_argument('-i', '--id', required=True, help='Column with sample IDs')
     parser.add_argument('--plinkFam', required=True)
 
@@ -20,9 +21,13 @@ plink_fam = args.plinkFam
 
 data = pd.read_csv(args.data, index_col=id_col, dtype={id_col: str})
 samples = pd.read_csv(args.samples, index_col=id_col, dtype={id_col: str})
+remove = args.remove
 
 print(data)
 print(samples)
+
+if args.remove is not None:
+    samples = samples[~samples.index.isin(open(remove).read().splitlines())]
 
 plink_fam = pd.read_table(plink_fam, header=None, comment='#', index_col=1, sep='\\s+', dtype={0: str, 1: str})
 

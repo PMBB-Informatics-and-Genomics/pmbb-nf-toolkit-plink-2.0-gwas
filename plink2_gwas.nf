@@ -70,18 +70,25 @@ workflow PLINK2_GWAS {
         chromosome = Channel.fromList(params.chromosome_list)
         plink_suffixes_list = params.plink_flag == '--bfile' ? ['.bed', '.bim', '.fam'] : ['.pgen', '.pvar', '.psam']
 
-        cohort_setup_script = "${projectDir}/scripts/set_up_cohort_directory.py"
-        standardize_pheno_script = "${projectDir}/scripts/standardize_phenos.py"
-        pheno_table_script = "${projectDir}/scripts/make_pheno_summary_table.py"
-        pheno_covar_plots_script = "${projectDir}/scripts/make_pheno_covar_summary_plots.py"
-        merge_plink2_script = "${projectDir}/scripts/merge_and_filter_plink2_results.py"
-        plotting_script = "${projectDir}/scripts/make_manhattan_qq_plots.py"
+        cohort_setup_script = "${moduleDir}/scripts/set_up_cohort_directory.py"
+        standardize_pheno_script = "${moduleDir}/scripts/standardize_phenos.py"
+        pheno_table_script = "${moduleDir}/scripts/make_pheno_summary_table.py"
+        pheno_covar_plots_script = "${moduleDir}/scripts/make_pheno_covar_summary_plots.py"
+        merge_plink2_script = "${moduleDir}/scripts/merge_and_filter_plink2_results.py"
+        plotting_script = "${moduleDir}/scripts/make_manhattan_qq_plots.py"
 
         pheno_covar_table = "${params.data_csv}"
         cohort_table = "${params.cohort_sets}"
+        related_file = params.related_list == null ? [] : "${params.related_list}"
 
         plink_fam = "${params.plink_chr_prefix}${params.chromosome_list.get(0)}${params.plink_chr_suffix}${plink_suffixes_list.get(2)}"
-        cohort_tables_samples = set_up_cohort(cohort, cohort_setup_script, pheno_covar_table, cohort_table, plink_fam)
+        cohort_tables_samples = set_up_cohort(
+            cohort, cohort_setup_script,
+            pheno_covar_table,
+            cohort_table,
+            plink_fam,
+            related_file
+        )
         standardized_pheno_files = standardize_phenos(cohort_tables_samples, standardize_pheno_script)
 
         // make pheno summary table, conditionally handle empty phenotype lists
@@ -210,6 +217,7 @@ process set_up_cohort {
         path pheno_covar_table
         path cohort_table
         path plink_fam
+        path remove_relateds
     output:
         tuple val(cohort), path("${cohort}.plink2_pheno_covars.txt"), path("${cohort}.sample_list.txt")
     shell:
@@ -218,6 +226,7 @@ process set_up_cohort {
           --data ${pheno_covar_table} \
           --cohort ${cohort} \
           --samples ${cohort_table} \
+          ${params.related_list == null ? '' : '--remove ' + remove_relateds} \
           --plinkFam ${plink_fam} \
           --id ${params.id_col}
         """
@@ -254,7 +263,7 @@ process make_pheno_summaries {
 
 process parse_pheno_summary_table {
     machineType 'n2-standard-4'
-    
+
     cache false
     input:
         path pheno_table_file // this is the appropriate path object
@@ -429,16 +438,16 @@ process call_plink2_linear {
         """
         plink2 --glm hide-covar cols=+a1freq \
             --ci 0.95 \
-                --keep ${sample_list} \
-                --maf ${params.min_maf} \
-                --geno ${params.max_missing_per_var} \
-                --hwe ${params.hwe_min_pvalue} \
-                ${params.plink_flag} ${plink_prefix} \
-                --pheno ${pheno_covar} \
-                --pheno-name ${pheno} \
-                --covar ${pheno_covar} \
-                ${covariate_args} \
-                --out ${cohort}.${pheno}.${chromosome}
+            --keep ${sample_list} \
+            --maf ${params.min_maf} \
+            --geno ${params.max_missing_per_var} \
+            --hwe ${params.hwe_min_pvalue} \
+            ${params.plink_flag} ${plink_prefix} \
+            --pheno ${pheno_covar} \
+            --pheno-name ${pheno} \
+            --covar ${pheno_covar} \
+            ${covariate_args} \
+            --out ${cohort}.${pheno}.${chromosome}
 
         mv ${cohort}.${pheno}.${chromosome}.${pheno}.glm.linear ${cohort}.${pheno}.${chromosome}.glm.linear
         """
@@ -639,9 +648,9 @@ process collect_plot_files {
     machineType 'n2-standard-4'
 
     input:
-        path (pheno_table)
+        path(pheno_table)
     output:
-        path ('results_manifest.csv')
+        path('results_manifest.csv')
     script:
         """
         #! ${params.my_python}
