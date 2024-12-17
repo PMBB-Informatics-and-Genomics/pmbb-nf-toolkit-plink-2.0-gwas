@@ -70,18 +70,19 @@ workflow PLINK2_GWAS {
         chromosome = Channel.fromList(params.chromosome_list)
         plink_suffixes_list = params.plink_flag == '--bfile' ? ['.bed', '.bim', '.fam'] : ['.pgen', '.pvar', '.psam']
 
-        cohort_setup_script = "${launchDir}/scripts/set_up_cohort_directory.py"
+        cohort_setup_script = "${projectDir}/scripts/set_up_cohort_directory.py"
+        standardize_pheno_script = "${projectDir}/scripts/standardize_phenos.py"
+        pheno_table_script = "${projectDir}/scripts/make_pheno_summary_table.py"
+        pheno_covar_plots_script = "${projectDir}/scripts/make_pheno_covar_summary_plots.py"
+        merge_plink2_script = "${projectDir}/scripts/merge_and_filter_plink2_results.py"
+        plotting_script = "${projectDir}/scripts/make_manhattan_qq_plots.py"
+
         pheno_covar_table = "${params.data_csv}"
         cohort_table = "${params.cohort_sets}"
 
         plink_fam = "${params.plink_chr_prefix}${params.chromosome_list.get(0)}${params.plink_chr_suffix}${plink_suffixes_list.get(2)}"
         cohort_tables_samples = set_up_cohort(cohort, cohort_setup_script, pheno_covar_table, cohort_table, plink_fam)
-
-        standardize_pheno_script = "${launchDir}/scripts/standardize_phenos.py"
         standardized_pheno_files = standardize_phenos(cohort_tables_samples, standardize_pheno_script)
-
-        pheno_table_script = "${launchDir}/scripts/make_pheno_summary_table.py"
-        pheno_covar_plots_script = "${launchDir}/scripts/make_pheno_covar_summary_plots.py"
 
         // make pheno summary table, conditionally handle empty phenotype lists
         pheno_table = make_pheno_summaries(
@@ -102,12 +103,14 @@ workflow PLINK2_GWAS {
                 )
 
         // parse the pheno-cohort summary table
-        all_pheno_table_lines = parse_pheno_summary_table(pheno_table)
+        pheno_table_filename = "${launchDir}/Summary/pheno_summaries.csv"
+        // parse the pheno-cohort summary table
+        all_pheno_table_lines = parse_pheno_summary_table(pheno_table, pheno_table_filename)
         num_combos = params.cohort_list.size() * (bin_pheno_list.size() + quant_pheno_list.size())
         num_channel = Channel.fromList(1..num_combos)
         lines_with_num = num_channel.combine(all_pheno_table_lines)
         pheno_table_info = lines_with_num.map { i, all_lines ->
-            all_lines.get(i - 1)
+            all_lines.get(i) // Use i not i-1 because 0 is the header row
         }
 
         bin_pheno_info = pheno_table_info.filter { row -> bin_pheno_list.contains(row.get(1)) }
@@ -167,7 +170,6 @@ workflow PLINK2_GWAS {
         all_gwas_results_by_chr = gwas_bin_results_by_chr.concat(gwas_quant_results_by_chr)
         all_gwas_results_grouped = all_gwas_results_by_chr.groupTuple(by: [0, 1], size: params.chromosome_list.size())
 
-        merge_plink2_script = "${launchDir}/scripts/merge_and_filter_plink2_results.py"
         (merged_sumstats, filtered_sumstats) = merge_and_filter_plink2_output(all_gwas_results_grouped, merge_plink2_script)
 
         // take filtered output on a journey through BioFilter
@@ -176,7 +178,6 @@ workflow PLINK2_GWAS {
         // tuple val(cohort), val(pheno), path("${pheno}.filtered.plink2.gz")
 
         filtered_sumstats_list = filtered_sumstats.map { cohort, pheno, sumstats -> sumstats }.collect()
-        plotting_script = "${launchDir}/scripts/make_manhattan_qq_plots.py"
         if (params['annotate']) {
             biofilter_input = make_biofilter_positions_input(filtered_sumstats_list)
             bf_input_channel = Channel.of('plink_stats').combine(biofilter_input)
@@ -191,6 +192,9 @@ workflow PLINK2_GWAS {
         // tuple val(cohort), val(pheno), path("${pheno}.plink2.gz")
         // tuple val(cohort), val(pheno), path("${pheno}.filtered.plink2.gz")
 
+        // make results manifest
+        results_manifest = collect_plot_files(pheno_table)
+
     emit:
         merged_sumstats
         pheno_table
@@ -198,6 +202,7 @@ workflow PLINK2_GWAS {
 
 process set_up_cohort {
     publishDir "${launchDir}/${cohort}/"
+    machineType 'n2-standard-4'
 
     input:
         val cohort
@@ -220,6 +225,7 @@ process set_up_cohort {
 
 process make_pheno_summaries {
     publishDir "${launchDir}/Summary/"
+    machineType 'n2-standard-4'
 
     input:
         val cohort_list
@@ -247,13 +253,41 @@ process make_pheno_summaries {
 }
 
 process parse_pheno_summary_table {
-    executor 'local'
+    machineType 'n2-standard-4'
+    
+    cache false
     input:
-        val pheno_table // for executing Groovy code, must be val not path
+        path pheno_table_file // this is the appropriate path object
+        val pheno_table_string // for executing Groovy code, must be val not path
     output:
         val list_of_info_lists
-    exec:
-        pheno_table_lines = (new File(pheno_table.toString())).readLines()
+    script:
+        exist_checks = 0
+        sleep_interval = 100 // milliseconds
+        max_sleep = 10 * 1000 // 10 seconds
+
+        current_sleep = 0
+        while (exist_checks < 3 && current_sleep <= max_sleep) {
+            if (file(pheno_table_string).exists()) {
+                exist_checks += 1
+            }
+            sleep(sleep_interval)
+            current_sleep += sleep_interval
+        }
+
+        not_empty_checks = 0
+        current_sleep = 0
+        while (not_empty_checks < 3 && current_sleep <= max_sleep) {
+            if ((new File(pheno_table_string)).empty()) {
+                not_empty_checks += 1
+            }
+            sleep(sleep_interval)
+            current_sleep += sleep_interval
+        }
+
+        assert file(pheno_table_string).exists() && !(new File(pheno_table_string)).empty() : 'File System Latency Issues. Please Try Re-Running'
+
+        pheno_table_lines = (new File(pheno_table_string)).readLines()
         info_row_lists = []
         pheno_table_lines.each {
             line ->
@@ -261,10 +295,15 @@ process parse_pheno_summary_table {
             info_row_lists.add(line_parts)
         }
         list_of_info_lists = [info_row_lists]
+
+        '''
+        echo "done"
+        '''
 }
 
 process make_pheno_covar_summary_plots {
     publishDir "${launchDir}/Plots/"
+    machineType 'n2-standard-4'
 
     input:
         val cohort_list
@@ -297,6 +336,7 @@ process make_pheno_covar_summary_plots {
 process standardize_phenos {
     //this process will standardize or normalize the raw phenoptype and covariates files
     publishDir "${launchDir}/${cohort}/"
+    machineType 'n2-standard-4'
 
     input:
         tuple val(cohort), path(pheno_covar_file), path(sample_list)
@@ -338,7 +378,8 @@ String get_covar_list_args(String cohort, cohort_cat_covars, cohort_cont_covars)
 
 process call_plink2_logistic {
     publishDir "${launchDir}/${cohort}/GWAS_Plink/"
-    container ''
+    machineType 'n2-standard-4'
+
     //this process will perform association test with logistic regression
     input:
         tuple val(cohort), val(pheno), val(chromosome), path(pheno_covar), path(sample_list), path(plink_set), val(plink_prefix)
@@ -349,14 +390,12 @@ process call_plink2_logistic {
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
         """
-        module load plink/2.0-20210505
 
         plink2 --glm hide-covar firth-fallback cols=+a1freq,+a1freqcc,+firth \
             --ci 0.95 \
             --keep ${sample_list} \
             --maf ${params.min_maf} \
             --geno ${params.max_missing_per_var} \
-            --mind ${params.max_missing_per_sample} \
             --hwe ${params.hwe_min_pvalue} \
             ${params.plink_flag} ${plink_prefix} \
             --pheno ${pheno_covar} \
@@ -365,7 +404,7 @@ process call_plink2_logistic {
             ${covariate_args} \
             --out ${cohort}.${pheno}.${chromosome}
 
-        rename ${cohort}.${pheno}.${chromosome}.${pheno} ${cohort}.${pheno}.${chromosome} *
+        mv ${cohort}.${pheno}.${chromosome}.${pheno}.glm.logistic.hybrid ${cohort}.${pheno}.${chromosome}.glm.logistic.hybrid
 
         """
     stub:
@@ -376,7 +415,8 @@ process call_plink2_logistic {
 
 process call_plink2_linear {
     publishDir "${launchDir}/${cohort}/GWAS_Plink/"
-    container ''
+    machineType 'n2-standard-4'
+
     //this process will perform association test with logistic regression
     input:
         tuple val(cohort), val(pheno), val(chromosome), path(pheno_covar), path(sample_list), path(plink_set), val(plink_prefix)
@@ -387,13 +427,11 @@ process call_plink2_linear {
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
         """
-        module load plink/2.0-20210505
         plink2 --glm hide-covar cols=+a1freq \
             --ci 0.95 \
                 --keep ${sample_list} \
                 --maf ${params.min_maf} \
                 --geno ${params.max_missing_per_var} \
-                --mind ${params.max_missing_per_sample} \
                 --hwe ${params.hwe_min_pvalue} \
                 ${params.plink_flag} ${plink_prefix} \
                 --pheno ${pheno_covar} \
@@ -402,7 +440,7 @@ process call_plink2_linear {
                 ${covariate_args} \
                 --out ${cohort}.${pheno}.${chromosome}
 
-        rename ${cohort}.${pheno}.${chromosome}.${pheno} ${cohort}.${pheno}.${chromosome} *
+        mv ${cohort}.${pheno}.${chromosome}.${pheno}.glm.linear ${cohort}.${pheno}.${chromosome}.glm.linear
         """
     stub:
         """
@@ -412,6 +450,7 @@ process call_plink2_linear {
 
 process merge_and_filter_plink2_output {
     publishDir "${launchDir}/${cohort}/Sumstats/"
+    machineType 'n2-standard-4'
 
     input:
         // variables
@@ -440,6 +479,7 @@ process merge_and_filter_plink2_output {
 
 process make_biofilter_positions_input {
     publishDir "${launchDir}/Annotations/"
+    machineType 'n2-standard-4'
 
     input:
         path(filtered_sumstats, stageAs: '?/*')
@@ -463,11 +503,14 @@ process make_biofilter_positions_input {
         all[keep_cols].to_csv('plink2_gwas_biofilter_input_positions.txt', header=False, index=False, sep=' ')
         """
     stub:
-        'touch plink2_gwas_biofilter_input_positions.txt'
+        '''
+        touch plink2_gwas_biofilter_input_positions.txt
+        '''
 }
 
 process plot_plink_results_with_annot {
     publishDir "${launchDir}/Plots/"
+    machineType 'n2-standard-4'
 
     input:
         tuple val(cohort), val(pheno), path(sumstats), val(data_nickname), path(biofilter_annots)
@@ -495,6 +538,7 @@ process plot_plink_results_with_annot {
 }
 process plot_plink_results {
     publishDir "${launchDir}/Plots/"
+    machineType 'n2-standard-4'
 
     input:
         tuple val(cohort), val(pheno), path(sumstats)
@@ -522,6 +566,7 @@ process plot_plink_results {
 
 process make_summary_table {
     publishDir "${launchDir}/Summary/"
+    machineType 'n2-standard-4'
 
     input:
         path(all_filtered_sumstats, stageAs: '?/*')
@@ -553,6 +598,7 @@ process make_summary_table {
 // Make top hits summary table with RSIDs and nearest genes
 process make_summary_table_with_annot {
     publishDir "${launchDir}/Summary/"
+    machineType 'n2-standard-4'
 
     input:
         path(all_filtered_sumstats, stageAs: '?/*')
@@ -585,5 +631,36 @@ process make_summary_table_with_annot {
     stub:
         '''
         touch plink2_all_suggestive.csv
+        '''
+}
+
+process collect_plot_files {
+    publishDir "${launchDir}/Summary/"
+    machineType 'n2-standard-4'
+
+    input:
+        path (pheno_table)
+    output:
+        path ('results_manifest.csv')
+    script:
+        """
+        #! ${params.my_python}
+
+        import pandas as pd
+        def plots_filename(row):
+            barplot = f"Plots/{row['PHENO']}.barplots.png"
+            violinplot = f"Plots/{row['PHENO']}.violinplot.png"
+            manhattanplot = f"Plots/{row['COHORT']}.{row['PHENO']}.manhattan.png"
+            qqplot = f"Plots/{row['COHORT']}.{row['PHENO']}.qq.png"
+            resultsfile = f"{row['COHORT']}/Sumstats/{row['COHORT']}.{row['PHENO']}.filtered.plink2.csv"
+            return (barplot, violinplot, manhattanplot, qqplot, resultsfile)
+
+        pheno_table = pd.read_csv('${pheno_table}')
+        pheno_table[['pheno_bar_plot', 'pheno_violin_plot', 'manhattan_plot', 'qq_plot', 'results_file']] = pheno_table.apply(lambda row: plots_filename(row), axis=1,result_type='expand')
+        pheno_table.to_csv('results_manifest.csv',index=False)
+        """
+    stub:
+        '''
+        touch results_manifest.csv
         '''
 }

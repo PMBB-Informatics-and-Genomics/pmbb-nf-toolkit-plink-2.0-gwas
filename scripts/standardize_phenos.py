@@ -1,5 +1,6 @@
 import argparse as ap
 import pandas as pd
+import numpy as np
 
 from pathlib import Path
 # from sklearn.preprocessing import StandardScaler
@@ -85,7 +86,23 @@ print(f'Total Number of Columns: {df.shape[1]}\nNumber of category columns: {len
 # let's scale using raw pandas
 df[quant_columns] = (df[quant_columns] - df[quant_columns].mean()) / df[quant_columns].std()
 
-df[binary_columns] = df[binary_columns].replace({0: 1, 1: 2}).fillna(-9)
+for col in df[binary_columns]:
+    uniq_vals=df[col].unique().tolist()
+    correct_vals_incld_missing=[1,2,-9]
+    correct_vals_no_missing=[1,2]
+    correct_vals_missing_na=[1,2,np.nan]
+    if set(uniq_vals) == set(correct_vals_incld_missing):
+        print('binary column values are in the correct format, no need to transform')
+    elif set(uniq_vals) == set(correct_vals_no_missing):
+        print('binary column values are in the correct format, no need to transform')
+    elif set(uniq_vals) == set(correct_vals_missing_na):
+        print('binary encodings are correct, but there are missing values. transforming missing values')
+        df[col]=df[col].fillna(-9)
+    else:
+        print('binary encodings are not correct, recoding values and transforming missing values')
+        df[col]=df[col].replace({0: 1, 1: 2}).fillna(-9)
+
+#df[binary_columns] = df[binary_columns].replace({0: 1, 1: 2}).fillna(-9)
 
 # save
 if outfile:
