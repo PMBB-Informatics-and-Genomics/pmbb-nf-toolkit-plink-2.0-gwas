@@ -1,0 +1,1 @@
+FOR PLINK: Run This command and keep the tophits file in the root directory :-> python3 /path/to/file/generate_plink_report_updated.py --phenotypes AAA BMI_median --cohorts AFR_ALL EUR_ALL --top_hits_csv top_hits.csv --output_dir plink_reports_updated
