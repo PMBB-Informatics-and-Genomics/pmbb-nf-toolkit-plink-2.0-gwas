@@ -1,7 +1,20 @@
 nextflow.enable.dsl = 2
 
-MIN_BIN_CASES = params.min_bin_cases == null ? 50 : params.min_bin_cases
-MIN_QUANT_N = params.min_bin_cases == null ? 500 : params.min_quant_n
+// Using this space to set some default parameter values
+// Setting these defaults helps to avoid any Errors due to null/undefined values
+// These values are overwritten when defined in the .config file as well
+params.putAll([
+    min_bin_cases: 50,
+    min_quant_n: 500,
+    bin_pheno_list: [],
+    quant_pheno_list: [],
+    cohort_list: [],
+    sex_strat_cohort_list: [],
+    chromosome_list: [21, 22]
+])
+
+MIN_BIN_CASES = params.min_bin_cases
+MIN_QUANT_N = params.min_quant_n
 
 log.info """\
     NEXTFLOW - DSL2 - PLINK 2.0 GWAS - P I P E L I N E
@@ -32,8 +45,13 @@ log.info """\
     min_quant_n             : ${MIN_QUANT_N}
     min_maf                 : ${params.min_maf}
     max_missing_per_variant : ${params.max_missing_per_var}
-    max_missing_per_sample  : ${params.max_missing_per_sample}
     min_hardy_p_value       : ${params.hwe_min_pvalue}
+
+    Output Parameters
+    ==================================================
+    p-value filter          : ${params.p_cutoff_summarize}
+    column name map         : ${params.plink2_col_names}
+
     """.stripIndent()
 
 workflow {
@@ -63,10 +81,12 @@ include { BIOFILTER_POSITIONS } from './biofilter_wrapper.nf'
 workflow PLINK2_GWAS {
     main:
         cohort = Channel.fromList(params.cohort_list)
-        bin_pheno = Channel.fromList(params.bin_pheno_list)
         bin_pheno_list = paramToList(params.bin_pheno_list)
-        quant_pheno = Channel.fromList(params.quant_pheno_list)
         quant_pheno_list = paramToList(params.quant_pheno_list)
+
+        bin_pheno = Channel.fromList(bin_pheno_list)
+        quant_pheno = Channel.fromList(quant_pheno_list)
+
         chromosome = Channel.fromList(params.chromosome_list)
         plink_suffixes_list = params.plink_flag == '--bfile' ? ['.bed', '.bim', '.fam'] : ['.pgen', '.pvar', '.psam']
 
@@ -76,6 +96,7 @@ workflow PLINK2_GWAS {
         pheno_covar_plots_script = "${moduleDir}/scripts/make_pheno_covar_summary_plots.py"
         merge_plink2_script = "${moduleDir}/scripts/merge_and_filter_plink2_results.py"
         plotting_script = "${moduleDir}/scripts/make_manhattan_qq_plots.py"
+        report_script = "${moduleDir}/scripts/generate_plink_reports.py"
 
         pheno_covar_table = "${params.data_csv}"
         cohort_table = "${params.cohort_sets}"
@@ -94,16 +115,16 @@ workflow PLINK2_GWAS {
         // make pheno summary table, conditionally handle empty phenotype lists
         pheno_table = make_pheno_summaries(
                 cohort.collect(),
-                (params.bin_pheno_list.size() == 0)  ? '[]' : bin_pheno.toSortedList(),
-                (params.quant_pheno_list.size() == 0) ? '[]' : quant_pheno.toSortedList(),
+                (bin_pheno_list.size() == 0)  ? '[]' : bin_pheno.toSortedList(),
+                (quant_pheno_list.size() == 0) ? '[]' : quant_pheno.toSortedList(),
                 plink_fam,
                 pheno_covar_table, cohort_table,
                 pheno_table_script
                 )
         pheno_plots = make_pheno_covar_summary_plots(
                 cohort.collect(),
-                (params.bin_pheno_list.size() == 0)  ? '[]' : bin_pheno.toSortedList(),
-                (params.quant_pheno_list.size() == 0) ? '[]' : quant_pheno.toSortedList(),
+                (bin_pheno_list.size() == 0)  ? '[]' : bin_pheno.toSortedList(),
+                (quant_pheno_list.size() == 0) ? '[]' : quant_pheno.toSortedList(),
                 plink_fam,
                 pheno_covar_table, cohort_table,
                 pheno_covar_plots_script
@@ -177,7 +198,7 @@ workflow PLINK2_GWAS {
         all_gwas_results_by_chr = gwas_bin_results_by_chr.concat(gwas_quant_results_by_chr)
         all_gwas_results_grouped = all_gwas_results_by_chr.groupTuple(by: [0, 1], size: params.chromosome_list.size())
 
-        (merged_sumstats, filtered_sumstats) = merge_and_filter_plink2_output(all_gwas_results_grouped, merge_plink2_script)
+        (merged_sumstats, filtered_sumstats) = merge_and_filter_plink2_output(all_gwas_results_grouped, merge_plink2_script, params.p_cutoff_summarize, params.plink2_col_names)
 
         // take filtered output on a journey through BioFilter
         // plots and report post-processing
@@ -189,18 +210,32 @@ workflow PLINK2_GWAS {
             biofilter_input = make_biofilter_positions_input(filtered_sumstats_list)
             bf_input_channel = Channel.of('plink_stats').combine(biofilter_input)
             biofilter_annots = BIOFILTER_POSITIONS(bf_input_channel)
-            plots = plot_plink_results_with_annot(merged_sumstats.combine(biofilter_annots), plotting_script)
-            make_summary_table_with_annot(filtered_sumstats_list, biofilter_annots)
+            manhattan_qq_plots = plot_plink_results_with_annot(merged_sumstats.combine(biofilter_annots), plotting_script)
+            top_hit_table = make_summary_table_with_annot(filtered_sumstats_list, biofilter_annots)
         }
         else {
-            plots = plot_plink_results(merged_sumstats, plotting_script)
-            make_summary_table(filtered_sumstats_list)
+            manhattan_qq_plots = plot_plink_results(merged_sumstats, plotting_script)
+            top_hit_table = make_summary_table(filtered_sumstats_list)
         }
         // tuple val(cohort), val(pheno), path("${pheno}.plink2.gz")
         // tuple val(cohort), val(pheno), path("${pheno}.filtered.plink2.gz")
 
         // make results manifest
-        results_manifest = collect_plot_files(pheno_table)
+        // results_manifest = collect_plot_files(pheno_table)
+
+        // Collect a list of plots and phenotypes
+        all_plots = pheno_plots.concat(manhattan_qq_plots).collect()
+        all_phenos = quant_pheno_list + bin_pheno_list
+
+        // Use the reporting script to generate a .zip folder
+        // Containing HTML and source files
+        make_results_report(
+            all_plots,
+            top_hit_table,
+            report_script,
+            all_phenos,
+            params.cohort_list
+        )
 
     emit:
         merged_sumstats
@@ -465,18 +500,20 @@ process merge_and_filter_plink2_output {
         // variables
         tuple val(cohort), val(pheno), val(chr_list), path(chr_inputs)
         path merge_plink2_script
+        val pvalue_cutoff
+        val column_names
     output:
         tuple val(cohort), val(pheno), path("${cohort}.${pheno}.plink2.gz")
         tuple val(cohort), val(pheno), path("${cohort}.${pheno}.filtered.plink2.csv")
     shell:
         """
-        echo "${params.plink2_col_names.collect().join('\n')}" > colnames.txt
+        echo "${column_names.collect().join('\n')}" > colnames.txt
         cat colnames.txt
         ${params.my_python} ${merge_plink2_script} \
           -p ${pheno} \
           -c colnames.txt \
           -s ${chr_inputs.join(' ')} \
-          --pvalue ${params.p_cutoff_summarize} \
+          --pvalue ${pvalue_cutoff} \
           --cohort ${cohort}
         """
     stub:
@@ -545,6 +582,7 @@ process plot_plink_results_with_annot {
         touch ${cohort}.${pheno}.qq.csv
         """
 }
+
 process plot_plink_results {
     publishDir "${launchDir}/Plots/"
     machineType 'n2-standard-4'
@@ -671,5 +709,33 @@ process collect_plot_files {
     stub:
         '''
         touch results_manifest.csv
+        '''
+}
+
+process make_results_report {
+    publishDir "${launchDir}", mode: 'copy'
+    machineType 'n2-standard-4'
+    
+    input:
+        path all_plots, stageAs: 'Plots/*'
+        path top_hits_table
+        path report_script
+        val all_pheno_list
+        val all_cohort_list
+    output:
+        path('Plink_2.0_GWAS_Report.tar.gz')
+    shell:
+        """
+        ${params.my_python} ${report_script} \
+            --phenotypes ${all_pheno_list.join(' ')} \
+            --cohorts ${all_cohort_list.join(' ')} \
+            --top_hits_csv ${top_hits_table} \
+            --output_dir Plink_2.0_GWAS_Report
+
+        tar -czvf Plink_2.0_GWAS_Report.tar.gz Plink_2.0_GWAS_Report/
+        """
+    stub:
+        '''
+        touch Plink_2.0_GWAS_Report.tar.gz
         '''
 }

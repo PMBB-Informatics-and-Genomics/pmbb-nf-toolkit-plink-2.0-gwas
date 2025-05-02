@@ -48,7 +48,7 @@ output_manhattan = f'{output_dir}/{cohort}.{pheno}.manhattan.png'
 output_qq = f'{output_dir}/{cohort}.{pheno}.qq.png'
 
 # Example output file to be used lives in:
-# /path/to/data/*.gz
+# /project/pmbb_codeworks/projects/geno_pheno_workbench_dev/GWAMA_META/Meta/Sumstats/*.gz
 
 # Instantiate manhattan plot object
 plot_title = f'Plink2 GWAS Manhattan for {cohort}: {pheno.replace("_", " ")}'
@@ -56,10 +56,9 @@ mp = ManhattanPlot(sumstats_file, title=plot_title)
 mp.load_data()
 # clean data, use parameter map function
 plink2_col_map = make_column_name_map_dict(args.colnames)
-neat_col_map = {plink2_col_map['#CHROM']: '#CHROM',
-                plink2_col_map['POS']: 'POS',
-                plink2_col_map['ID']: 'ID',
-                plink2_col_map['P']: 'P'}
+
+map_keys = [k for k in ['#CHROM', 'POS', 'ID', 'P'] if k in plink2_col_map.keys()]
+neat_col_map = {plink2_col_map[k]: k for k in map_keys}
 
 mp.clean_data(col_map=neat_col_map)
 
