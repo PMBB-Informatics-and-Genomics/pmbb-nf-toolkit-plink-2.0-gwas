@@ -34,7 +34,7 @@ plink_fam = args.plinkFam
 output_dir = args.outDir
 id_col = args.id
 
-plink_fam = pd.read_table(plink_fam, header=None, comment='#', index_col=1, sep='\\s+', dtype={0: str, 1: str})
+plink_fam = pd.read_table(plink_fam, header=None, comment='#', index_col=1, sep=r'\s+', dtype={0: str, 1: str})
 
 pheno_info = []
 
@@ -44,34 +44,56 @@ sample_table = pd.read_csv(args.samples, index_col=id_col, dtype={id_col: str})
 for c in cohorts:
     samples = sample_table.index[sample_table[c] == 1]
     pheno_covars = data.loc[data.index.intersection(samples)]
-
     keep_samples = list(set(samples).intersection(pheno_covars.index).intersection(plink_fam.index))
 
     if len(bin_phenos) > 0:
-        bin_pheno_info = pheno_covars.loc[keep_samples, bin_phenos].apply(lambda x: x.value_counts(), result_type='expand').transpose().rename(columns={0: 'Controls', 1: 'Cases'})
-        bin_pheno_info['N'] = pheno_covars.loc[keep_samples, bin_phenos].count()
-        bin_pheno_info['Prevalence'] = pheno_covars.loc[keep_samples, bin_phenos].mean()
+        # Check if binary phenotypes exist in data
+        missing_bin_phenos = [p for p in bin_phenos if p not in data.columns]
+        if missing_bin_phenos:
+            print(f"WARNING: Missing binary phenotypes in data: {missing_bin_phenos}")
+        available_bin_phenos = [p for p in bin_phenos if p in data.columns]
+        if available_bin_phenos:
+            bin_pheno_subset = pheno_covars.loc[keep_samples, available_bin_phenos]            
+            bin_pheno_info = bin_pheno_subset.apply(lambda x: x.value_counts(), result_type='expand').transpose()
+            # Handle cases where we might not have both 0 and 1 values
+            if 0 not in bin_pheno_info.columns:
+                bin_pheno_info[0] = 0
+            if 1 not in bin_pheno_info.columns:
+                bin_pheno_info[1] = 0
+        bin_pheno_info = bin_pheno_info.rename(columns={0: 'Controls', 1: 'Cases'})
+        # bin_pheno_info = pheno_covars.loc[keep_samples, bin_phenos].apply(lambda x: x.value_counts(), result_type='expand').transpose().rename(columns={0: 'Controls', 1: 'Cases'})
+        bin_pheno_info['N'] = bin_pheno_subset.loc[keep_samples, bin_phenos].count()
+        bin_pheno_info['Prevalence'] = bin_pheno_subset.loc[keep_samples, bin_phenos].mean()
         bin_pheno_info.index.name = 'PHENO'
         bin_pheno_info = bin_pheno_info.reset_index()
         bin_pheno_info['COHORT'] = c
         pheno_info.append(bin_pheno_info)
 
-    if len(quant_phenos) > 0:
-        quant_pheno_info = pheno_covars.loc[keep_samples, quant_phenos].describe().drop('count').transpose()
-        quant_pheno_info['N'] = pheno_covars.loc[keep_samples, quant_phenos].count()
+    available_quant_phenos = [p for p in quant_phenos if p in data.columns]
+    if available_quant_phenos:
+        quant_pheno_subset = pheno_covars.loc[keep_samples, available_quant_phenos]        
+        quant_pheno_info = quant_pheno_subset.describe().drop('count').transpose()
+        quant_pheno_info['N'] = quant_pheno_subset.count()
         quant_pheno_info.index.name = 'PHENO'
         quant_pheno_info = quant_pheno_info.reset_index()
         quant_pheno_info['COHORT'] = c
         pheno_info.append(quant_pheno_info)
 
-pheno_info = pd.concat(pheno_info).reset_index(drop=True)
-col_order = ['COHORT', 'PHENO', 'N']
-col_order.extend([c for c in pheno_info.columns if c not in col_order])
-pheno_info = pheno_info[col_order]
-
-# specify outdir if given
-if output_dir:
-    outfile = f'{output_dir}/pheno_summaries.csv'
+if pheno_info:
+    pheno_info = pd.concat(pheno_info).reset_index(drop=True)
+    col_order = ['COHORT', 'PHENO', 'N']
+    col_order.extend([c for c in pheno_info.columns if c not in col_order])
+    pheno_info = pheno_info[col_order]
+    
+    # specify outdir if given
+    if output_dir:
+        outfile = f'{output_dir}/pheno_summaries.csv'
+    else:
+        outfile = f'pheno_summaries.csv'
+    
+    pheno_info.to_csv(outfile, index=False)
+    print(f"\nOutput saved to: {outfile}")
+    print(f"Final output shape: {pheno_info.shape}")
+    print(f"Final output columns: {list(pheno_info.columns)}")
 else:
-    outfile = f'pheno_summaries.csv'
-pheno_info.to_csv(outfile, index=False)
+    print("No phenotype information was processed!")
