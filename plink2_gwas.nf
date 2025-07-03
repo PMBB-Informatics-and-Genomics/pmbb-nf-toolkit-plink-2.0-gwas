@@ -227,6 +227,8 @@ workflow PLINK2_GWAS {
         all_plots = pheno_plots.concat(manhattan_qq_plots).collect()
         all_phenos = quant_pheno_list + bin_pheno_list
 
+        json_params = dump_params_to_json(params)
+
         // Use the reporting script to generate a .zip folder
         // Containing HTML and source files
         make_results_report(
@@ -268,7 +270,7 @@ process set_up_cohort {
 }
 
 process make_pheno_summaries {
-    publishDir "${launchDir}/Summary/"
+    publishDir "${launchDir}/Summary/", mode: 'copy'
     machineType 'n2-standard-4'
 
     input:
@@ -612,7 +614,7 @@ process plot_plink_results {
 }
 
 process make_summary_table {
-    publishDir "${launchDir}/Summary/"
+    publishDir "${launchDir}/Summary/", mode: 'copy'
     machineType 'n2-standard-4'
 
     input:
@@ -644,7 +646,7 @@ process make_summary_table {
 
 // Make top hits summary table with RSIDs and nearest genes
 process make_summary_table_with_annot {
-    publishDir "${launchDir}/Summary/"
+    publishDir "${launchDir}/Summary/", mode: 'copy'
     machineType 'n2-standard-4'
 
     input:
@@ -682,7 +684,7 @@ process make_summary_table_with_annot {
 }
 
 process collect_plot_files {
-    publishDir "${launchDir}/Summary/"
+    publishDir "${launchDir}/Summary/", mode: 'copy'
     machineType 'n2-standard-4'
 
     input:
@@ -710,6 +712,21 @@ process collect_plot_files {
         '''
         touch results_manifest.csv
         '''
+}
+
+import groovy.json.JsonBuilder
+process dump_params_to_json {
+    publishDir "${launchDir}/Summary", mode: 'copy'
+    machineType 'n2-standard-2'
+
+    input:
+        val params_dict
+    output:
+        path('plink2_gwas_params.json')
+    shell:
+        """
+        echo '${new JsonBuilder(params_dict).toPrettyString().replace(';', '|')}' > plink2_gwas_params.json
+        """
 }
 
 process make_results_report {
