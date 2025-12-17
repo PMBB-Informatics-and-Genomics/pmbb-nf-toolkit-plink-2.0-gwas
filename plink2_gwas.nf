@@ -246,7 +246,6 @@ workflow PLINK2_GWAS {
 
 process set_up_cohort {
     publishDir "${launchDir}/${cohort}/"
-    machineType 'n2-standard-4'
 
     input:
         val cohort
@@ -271,7 +270,6 @@ process set_up_cohort {
 
 process make_pheno_summaries {
     publishDir "${launchDir}/Summary/", mode: 'copy'
-    machineType 'n2-standard-4'
 
     input:
         val cohort_list
@@ -299,7 +297,6 @@ process make_pheno_summaries {
 }
 
 process parse_pheno_summary_table {
-    machineType 'n2-standard-4'
 
     cache false
     input:
@@ -349,7 +346,6 @@ process parse_pheno_summary_table {
 
 process make_pheno_covar_summary_plots {
     publishDir "${launchDir}/Plots/"
-    machineType 'n2-standard-4'
 
     input:
         val cohort_list
@@ -382,7 +378,6 @@ process make_pheno_covar_summary_plots {
 process standardize_phenos {
     //this process will standardize or normalize the raw phenoptype and covariates files
     publishDir "${launchDir}/${cohort}/"
-    machineType 'n2-standard-4'
 
     input:
         tuple val(cohort), path(pheno_covar_file), path(sample_list)
@@ -424,7 +419,6 @@ String get_covar_list_args(String cohort, cohort_cat_covars, cohort_cont_covars)
 
 process call_plink2_logistic {
     publishDir "${launchDir}/${cohort}/GWAS_Plink/"
-    machineType 'n2-standard-4'
 
     //this process will perform association test with logistic regression
     input:
@@ -461,7 +455,6 @@ process call_plink2_logistic {
 
 process call_plink2_linear {
     publishDir "${launchDir}/${cohort}/GWAS_Plink/"
-    machineType 'n2-standard-4'
 
     //this process will perform association test with logistic regression
     input:
@@ -496,7 +489,6 @@ process call_plink2_linear {
 
 process merge_and_filter_plink2_output {
     publishDir "${launchDir}/${cohort}/Sumstats/"
-    machineType 'n2-standard-4'
 
     input:
         // variables
@@ -527,7 +519,6 @@ process merge_and_filter_plink2_output {
 
 process make_biofilter_positions_input {
     publishDir "${launchDir}/Annotations/"
-    machineType 'n2-standard-4'
 
     input:
         path(filtered_sumstats, stageAs: '?/*')
@@ -558,7 +549,6 @@ process make_biofilter_positions_input {
 
 process plot_plink_results_with_annot {
     publishDir "${launchDir}/Plots/"
-    machineType 'n2-standard-4'
 
     input:
         tuple val(cohort), val(pheno), path(sumstats), val(data_nickname), path(biofilter_annots)
@@ -587,7 +577,6 @@ process plot_plink_results_with_annot {
 
 process plot_plink_results {
     publishDir "${launchDir}/Plots/"
-    machineType 'n2-standard-4'
 
     input:
         tuple val(cohort), val(pheno), path(sumstats)
@@ -615,7 +604,6 @@ process plot_plink_results {
 
 process make_summary_table {
     publishDir "${launchDir}/Summary/", mode: 'copy'
-    machineType 'n2-standard-4'
 
     input:
         path(all_filtered_sumstats, stageAs: '?/*')
@@ -647,7 +635,6 @@ process make_summary_table {
 // Make top hits summary table with RSIDs and nearest genes
 process make_summary_table_with_annot {
     publishDir "${launchDir}/Summary/", mode: 'copy'
-    machineType 'n2-standard-4'
 
     input:
         path(all_filtered_sumstats, stageAs: '?/*')
@@ -685,7 +672,6 @@ process make_summary_table_with_annot {
 
 process collect_plot_files {
     publishDir "${launchDir}/Summary/", mode: 'copy'
-    machineType 'n2-standard-4'
 
     input:
         path(pheno_table)
@@ -717,7 +703,6 @@ process collect_plot_files {
 import groovy.json.JsonBuilder
 process dump_params_to_json {
     publishDir "${launchDir}/Summary", mode: 'copy'
-    machineType 'n2-standard-2'
 
     input:
         val params_dict
@@ -731,7 +716,6 @@ process dump_params_to_json {
 
 process make_results_report {
     publishDir "${launchDir}", mode: 'copy'
-    machineType 'n2-standard-4'
     
     input:
         path all_plots, stageAs: 'Plots/*'
