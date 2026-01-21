@@ -23,6 +23,7 @@ def make_arg_parser():
 
     parser.add_argument('-d', '--data', required=True, help='.csv Phenotype and covariate file')
     parser.add_argument('-s', '--samples', required=True, help='.csv of cohort assignments')
+    parser.add_argument('-r', '--remove', required=False, help='.txt list of related sample IDs to remove')
 
     parser.add_argument('-i', '--id', required=True, help='Column with sample IDs')
 
@@ -38,6 +39,7 @@ quant_phenos = args.quantPhenotypes
 plink_fam = args.plinkFam
 output_dir = args.outDir
 id_col = args.id
+remove = args.remove
 
 # Read PLINK .fam file
 plink_fam = pd.read_table(plink_fam, header=None, comment='#', index_col=1, sep='\\s+', dtype={0: str, 1: str})
@@ -56,6 +58,11 @@ sample_table = pd.read_csv(args.samples, index_col=id_col, dtype={id_col: str})
 for c in cohorts:
     # Filter samples for current cohort
     samples = sample_table.index[sample_table[c] == 1]
+
+    if args.remove is not None:
+        drop_samples = open(remove).read().splitlines()
+        samples = [pid for pid in samples if pid not in drop_samples]
+    
     pheno_covars = data.loc[data.index.intersection(samples)]
     keep_samples = list(set(samples).intersection(pheno_covars.index).intersection(plink_fam.index))
 

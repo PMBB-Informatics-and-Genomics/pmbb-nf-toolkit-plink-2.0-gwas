@@ -6,24 +6,15 @@ Documentation for PLINK 2.0 GWAS
 
 
 Use plink 2.0 to run parallelized GWAS for binary and/or quantitative traits.
+- [Tool Paper Link for Reference](https://academic.oup.com/gigascience/article/4/1/s13742-015-0047-8/2707533)
+- [Tool Documentation Link for Reference](https://www.cog-genomics.org/plink/2.0/)
+- [Example Config File](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs/plink2_gwas.config)
+- [Example nextflow.config File](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs/nextflow.config)
 
-[Paper Link for Reference](https://academic.oup.com/gigascience/article/4/1/s13742-015-0047-8/2707533)
-
-[Tool Documentation Link](https://www.cog-genomics.org/plink/2.0/)
-
-[Example Module Config File](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs/plink2_gwas.config)
-
-[Example nextflow.config File](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs/nextflow.config)
-## Cloning Github Repository
-
-
-* Command: `git clone https://github.com/PMBB-Informatics-and-Genomics/geno_pheno_workbench.git`
-
-* Navigate to relevant workflow directory...
 ## Software Requirements
 
 
-* [Nextflow version 23.04.1.5866](https://www.nextflow.io/docs/latest/cli.html)
+* [Nextflow version 24.04.3](https://www.nextflow.io/docs/latest/cli.html)
 
 * [Singularity 3.8.3](https://sylabs.io/docs/) OR [Docker 4.30.0](https://docs.docker.com/)
 ## Commands for Running the Workflow
@@ -52,16 +43,96 @@ Use plink 2.0 to run parallelized GWAS for binary and/or quantitative traits.
     * `-profile all_of_us` uses the Docker image on All of Us Workbench
 
 * More info: [Nextflow documentation](https://www.nextflow.io/docs/latest/cli.html)
-# Input Files for PLINK_2.0_GWAS
+# Detailed Pipeline Steps
+
+## Part I: Setup
 
 
-* Sex Specific Phenotype List
+1. Start your own tools directory and go there. You may do this in your project analysis directory, but it often makes sense to clone into a general `tools` location
 
-    * A newline-separated list of phenotypes that should be excluded from non-sex-stratified cohorts (e.g., AFR_F or AFR_M but not AFR_ALL). Set to 
+```sh
+# Make a directory to clone the pipeline into
+TOOLS_DIR="/path/to/tools/directory"
+mkdir $TOOLS_DIR
+cd $TOOLS_DIR
+```
 
-    * Type: List File
+2. Download the source code by cloning from git
 
-    * Format: txt
+```sh
+git clone None
+cd $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas
+```
+
+3. Build the singularity image
+    - you may call the image whatever you like, and store it wherever you like. Just make sure you specify the name in `nextflow.conf`
+    - this does NOT have to be done for every saige-based analysis, but it is good practice to re-build every so often as we update regularly.
+
+
+```sh
+cd $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas
+singularity build plink2_gwas.sif docker://pennbiobank/plink2_gwas:latest
+```
+## Part II: Configure your run
+
+
+1. Make a separate analysis/run/working directory.
+    - The quickest way to get started, is to run the analysis in the folder the pipeline is run. However, subsequent analyses will over-write results from previous analyses.
+    - ❗This step is optional, but We Highly recommend making a `tools` directory separate from your `run` directory. We recommend storing the `nextflow.conf` in here as it shouldn't change between runs.
+
+
+```sh
+WDIR="/path/to/analysis/run1"
+mkdir -p $WDIR
+cd $WDIR
+```
+
+2. Fill out the `nextflow.config` file for your system.
+    - See [Nextflow configuration documentation](https://www.nextflow.io/docs/latest/config.html) for information on how to configure this file. An example can be found on our GitHub: [Nextflow Config](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/blob/main/Example_Configs/nextflow.config).
+    - ❗IMPORTANTLY, you must configure a user-defined profile for your run environments (local, docker, saige, cluster, etc.). If multiple profiles are specified, run with a specific profile using `nextflow run -profile $MY_PROFILE`.
+    - For singularity, The profile's attribute `process.container` should be set to `'/path/to/plink2_gwas.sif'` (replace `/path/to` with the location where you built the image above). See [Nextflow Executor Information](https://www.nextflow.io/docs/latest/executor.html) for more details.
+    - ⚠️As this file remains mostly unchanged for your system, We recommend storing this file in the `tools/pipeline` directory and passing it to the pipeline with `-c /path/to/nextflow.config`.
+
+
+3. Create a pipeline-specific `.config` file specifying your run parameters and input files. See Below for workflow-specific parameters and what they mean.
+    - Everything in here can be configured in `nextflow.config`, however we find it easier to separate the system-level profiles from the individual run parameters.
+    - Examples can be found in our Pipeline-Specific [Example Config Files](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs).
+    - you can compartamentalize your config file as much as you like by passing
+    - There are 2 ways to specify the config file during a run:
+
+        - with the `-c` option on the command line: `nextflow run -c Plink_2.0_GWAS/plink2_gwas.config`
+        - in the `nextflow.config`: at the top of the file add: `includeConfig Plink_2.0_GWAS/plink2_gwas.config`
+
+## Part III: Run your analysis
+
+
+❗We HIGHLY recommend doing a STUB run to test the analysis using the `-stub` flag. This is a dry run to make sure your environment, parameters, and input_files are specified and formatted correctly.❗We also HIGHLY recommend doing a TEST run with the included test data in `$TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/test_data`we have several pre-configured analyses runs with input data and fully-specified config files.
+
+```sh
+# run an exwas stub
+nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
+   -profile cluster \
+   -c /path/to/nextflow.config \
+   -c Plink_2.0_GWAS/plink2_gwas.config \
+   -stub
+
+# run an exwas for real
+nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
+   -profile cluster \
+   -c /path/to/nextflow.config \
+   -c Plink_2.0_GWAS/plink2_gwas.config
+
+# resume an exwas run if it was interrupted or ran into an error
+nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
+   -profile cluster \
+   -c /path/to/nextflow.config \
+   -c Plink_2.0_GWAS/plink2_gwas.config \
+   -resume
+```
+# Pipeline Parameters
+
+## Input Files for PLINK_2.0_GWAS
+
 
 * Cohort Membership
 
@@ -111,26 +182,16 @@ Use plink 2.0 to run parallelized GWAS for binary and/or quantitative traits.
     1a8,0.0162938047248591,0,0.943836210685299,0,0,0,0,0,0,0,0,0,1,1
     1a9,0.147167262428064,0,0.821221195098089,1,0,0,0,0,0,0,0,0,1,0
     ```
-# Output Files for PLINK_2.0_GWAS
 
+* Sex Specific Phenotype List
 
-* Plink 2.0 GWAS Top Hits Table
+    * A newline-separated list of phenotypes that should be excluded from non-sex-stratified cohorts (e.g., include in AFR_F or AFR_M but exclude from AFR_ALL). Set to 
 
-    * A FILTERED top hits csv summary file of results including cohort, phenotype, gene, group annotation, p-values, and other counts. One single summary file will be aggregated from all the “top hits” in each GWAS Summary Statistics file. The p-value threshold is specified by the user
+    * Type: List File
 
-    * Type: Summary Table
+    * Format: txt
+## Output Files for PLINK_2.0_GWAS
 
-    * Format: csv
-
-* GWAS QQ Plots
-
-    * QQ plots for the GWAS results
-
-    * Type: QQ Plot
-
-    * Format: png
-
-        * Parallel By: Cohort, Phenotype
 
 * GWAS Manhattan Plots
 
@@ -151,28 +212,42 @@ Use plink 2.0 to run parallelized GWAS for binary and/or quantitative traits.
     * Format: tsv.gz
 
         * Parallel By: Cohort, Phenotype
-# Parameters for PLINK_2.0_GWAS
 
-## Association Test Modeling
+* Plink 2.0 GWAS Top Hits Table
 
+    * A FILTERED top hits csv summary file of results including cohort, phenotype, gene, group annotation, p-values, and other counts. One single summary file will be aggregated from all the “top hits” in each GWAS Summary Statistics file. The p-value threshold is specified by the user
 
-* `sex_strat_cont_covars` (Type: List)
+    * Type: Summary Table
 
-    * Continuous covariates for sex stratified cohorts to ensure model converges
+    * Format: csv
+
+* GWAS QQ Plots
+
+    * QQ plots for the GWAS results
+
+    * Type: QQ Plot
+
+    * Format: png
+
+        * Parallel By: Cohort, Phenotype
+## Other Parameters for PLINK_2.0_GWAS
+
+### Association Test Modeling
+
 
 * `cont_covars ` (Type: List)
 
     * Continuous covariates list
 
+* `sex_strat_cont_covars` (Type: List)
+
+    * Continuous covariates for sex stratified cohorts to ensure model converges
+
 * `sex_strat_cat_covars` (Type: List)
 
     * Categorical covariates for sex stratified cohorts to ensure model converges
-## PLINK
+### PLINK
 
-
-* `plink_flag` (Type: String)
-
-    * Either 
 
 * `plink_chr_suffix` (Type: Plink Fileset Prefix)
 
@@ -181,63 +256,22 @@ Use plink 2.0 to run parallelized GWAS for binary and/or quantitative traits.
 * `plink_chr_prefix` (Type: Plink Fileset Prefix)
 
     * Full path to chromosome-separated plink files - everything before the chromosome number
-## Post-Processing
+### Post-Processing
 
-
-* `biofilter_close_dist` (Type: Float)
-
-    * The distance in bp for something to be considered “close” vs “far” with respect to nearest gene annotation. Value is often 5E4
-
-* `biofilter_script` (Type: File Path)
-
-    * The path to the biofilter script to use. If using the singularity container, should be ‘/app/biofilter.py’
-
-* `biofilter_loki` (Type: File Path)
-
-    * The path to a loki.db file to be used for nearest gene annotation
-
-* `biofilter_build` (Type: String)
-
-    * The build to pass to biofilter - can be 19 or 38
 
 * `plink2_col_names` (Type: Map (Dictionary))
 
     * Default Plink 2.0 column names mapped to new ones
 
-* `annotate` (Type: Bool (Java: true or false))
+* `biofilter_close_dist` (Type: Float)
 
-    * Whether or not to annotate results with the RSIDs and nearest genes for plotting and summary files.
-## Pre-Processing
-
-
-* `cohort_sets` (Type: File Path)
-
-    * A binary csv table in which the columns are the cohorts and the rows are the individuals. A 1 means that individual is a member of the column’s cohort, and a 0 means they aren’t.
-
-    * Corresponding Input File: Cohort Membership
-
-        * 0/1 table with cohorts as columns and participants as rows - 1 indicates that that row’s participant is a member of that column’s cohort
-
-        * Type: Data Table
-
-        * Format: csv
-
-        * File Header:
+    * The distance in bp for something to be considered “close” vs “far” with respect to nearest gene annotation. Value is often 5E4
+### Pre-Processing
 
 
-        ```
-        IID,POP1,POP2,POP3
-        1a1,1,0,1
-        1a2,1,0,0
-        1a3,0,0,0
-        1a4,1,0,0
-        1a5,1,0,0
-        1a6,1,1,0
-        1a7,0,0,0
-        1a8,1,0,1
-        1a9,0,1,1
-        
-        ```
+* `id_col ` (Type: String)
+
+    * ID column label
 
 * `data_csv` (Type: File Path)
 
@@ -266,25 +300,21 @@ Use plink 2.0 to run parallelized GWAS for binary and/or quantitative traits.
         1a8,0.0162938047248591,0,0.943836210685299,0,0,0,0,0,0,0,0,0,1,1
         1a9,0.147167262428064,0,0.821221195098089,1,0,0,0,0,0,0,0,0,1,0
         ```
-## QC Options
+### QC Options
 
 
 * `hwe_min_pvalue` (Type: Float)
 
     * Minimum HWE p-value for plink QC - variants with smaller p-values will be removed
 
-* `max_missing_per_sample` (Type: Float)
-
-    * Maximum missingness per sample - samples with more missingness than this will be removed
-
-* `max_missing_per_var` (Type: Float)
-
-    * Maximum missingness per variant - variants with more missingness will be removed
-
 * `min_maf` (Type: Float)
 
     * Minimum minor allele frequency for plink QC
-## Workflow
+
+* `max_missing_per_sample` (Type: Float)
+
+    * Maximum missingness per sample - samples with more missingness than this will be removed
+### Workflow
 
 
 * `sex_strat_cohort_list` (Type: List)
@@ -381,45 +411,6 @@ params {
     ]
 }
 ```
-## Current Dockerfile for Container/Image
-
-
-```docker
-FROM continuumio/miniconda3
-
-WORKDIR /app
-
-# biofilter version argument
-ARG BIOFILTER_VERSION=2.4.3
-
-RUN apt-get update \
-    # install packages needed for PLINK, NEAT plots and biofilter installation
-    && apt-get install -y --no-install-recommends libz-dev g++ gcc git wget tar unzip make \
-    && rm -rf /var/lib/apt/lists/* \
-    # install PLINK
-    && wget https://s3.amazonaws.com/plink2-assets/alpha5/plink2_linux_x86_64_20240105.zip \
-    && unzip plink2_linux_x86_64_20240105.zip \
-    && rm -rf plink2_linux_x86_64_20240105.zip \
-    # move plink2 executable to $PATH
-    && mv plink2 /usr/bin \
-    # install biofilter
-    && wget https://github.com/RitchieLab/biofilter/releases/download/Biofilter-${BIOFILTER_VERSION}/biofilter-${BIOFILTER_VERSION}.tar.gz -O biofilter.tar.gz \
-    && tar -zxvf biofilter.tar.gz --strip-components=1 -C /app/ \
-    && /opt/conda/bin/python setup.py install \
-    && chmod a+rx /app/biofilter.py \
-    # install python packages needed for pipeline
-    && conda install -y -n base -c conda-forge scikit-learn dominate wget libtiff conda-build scipy pandas seaborn matplotlib numpy apsw sqlite \
-    && conda clean --all --yes \
-    # install NEAT plots
-    && git clone https://github.com/PMBB-Informatics-and-Genomics/NEAT-Plots.git \
-    && mv NEAT-Plots/manhattan-plot/ /app/ \
-    && conda develop /app/manhattan-plot/ \
-    # remove NEAT-plots directory and biofilter tarball
-    && rm -R NEAT-Plots biofilter.tar.gz
-
-USER root
-
-```
 ## Current `nextflow.config` contents
 
 
@@ -484,83 +475,3 @@ profiles {
 
 
 A Channel of three-part tuples with (cohort, phenotype, and path to summary stats file)
-# Detailed Pipeline Steps
-
-
-from pathlib import Path
-
-detailed_steps_file = Path("Markdowns/Pipeline_Detailed_Steps.md")
-
-# Write the detailed steps content to a separate file
-detailed_steps_file
-
-# Detailed Steps for Runnning One of our Pipelines
-
-Note: test data were obtained from the [SAIGE github repo](https://github.com/saigegit/SAIGE).
-
-## Part I: Setup
-1. Start your own tools directory and go there. You may do this in your project analysis directory, but it often makes sense to clone into a general `tools` location
-
-```sh
-# Make a directory to clone the pipeline into
-TOOLS_DIR="/path/to/tools/directory"
-mkdir $TOOLS_DIR
-cd $TOOLS_DIR
-```
-
-2. Download the source code by cloning from git
-
-```sh
-git clone https://github.com/PMBB-Informatics-and-Genomics/pmbb-nf-toolkit-saige-family.git
-cd ${TOOLS_DIR}/pmbb-nf-toolkit-saige-family/
-```
-
-3. Build the `saige.sif` singularity image
-- you may call the image whatever you like, and store it wherever you like. Just make sure you specify the name in `nextflow.conf`
-- this does NOT have to be done for every saige-based analysis, but it is good practice to re-build every so often as we update regularly. 
-
-```sh
-cd ${TOOLS_DIR}/pmbb-nf-toolkit-saige-family/
-singularity build saige.sif docker://pennbiobank/saige:latest
-```
-
-## Part II: Configure your run
-
-1. Make a separate analysis/run/working directory.
-   - The quickest way to get started, is to run the analysis in the folder the pipeline is run. However, subsequent analyses will over-write results from previous analyses. 
-   - ❗This step is optional, but We Highly recommend making a  `tools` directory separate from your `run` directory. The only items that need to be in the run directory are the `nextflow.conf` file and the `${workflow}.conf` file.
-
-```sh
-WDIR="/path/to/analysis/run1"
-mkdir -p 
-cd $WDIR
-```
-
-2. Fill out the `nextflow.config` file for your system.
-    - See [Nextflow configuration documentation](https://www.nextflow.io/docs/latest/config.html) for information on how to configure this file. An example can be found on our GitHub: [Nextflow Config](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/Example_Configs/nextflow.config).
-    - ❗IMPORTANTLY, you must configure a user-defined profile for your run environments (local, docker, saige, cluster, etc.). If multiple profiles are specified, run with a specific profile using `nextflow run -profile ${MY_PROFILE}`.
-    - For singularity, The profile's attribute `process.container` should be set to `'/path/to/saige.sif'` (replace `/path/to` with the location where you built the image above). See [Nextflow Executor Information](https://www.nextflow.io/docs/latest/executor.html) for more details.
-    - ⚠️As this file remains mostly unchanged for your system, We recommend storing this file in the `tools/pipeline` directory and symlinking it to your run directory.
-
-3. Create a pipeline-specific `.config` file specifying your run parameters and input files. See Below for workflow-specific parameters and what they mean.
-   - Everything in here can be configured in `nextflow.config`, however we find it easier to separate the system-level profiles from the individual run parameters. 
-   - Examples can be found in our Pipeline-Specific [Example Config Files](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/Example_Configs/).
-   - you can compartamentalize your config file as much as you like by passing 
-   - There are 2 ways to specify the config file during a run:
-      - with the `-c` option on the command line: `nextflow run -c /path/to/workflow.conf`
-      - in the `nextflow.conf`: at the top of the file add: `includeConfig '/path/to/workflow.conf'` 
-
-## Part III: Run your analysis
-
-- ❗We HIGHLY recommend doing a STUB run to test the analysis using the `-stub` flag. This is a dry run to make sure your environment, parameters, and input_files are specified and formatted correctly. 
-- ❗We HIGHLY recommend doing a test run with the included test data in `${TOOLS_DIR}/pmbb-nf-toolkit-saige-family/test_data`
-- in the `test_data/` directory for each pipeline, we have several pre-configured analyses runs with input data and fully-specified config files.
-
-```sh
-# run an exwas stub
-nextflow run /path/to/pmbb-nf-toolkit-saige-family/workflows/saige_exwas.nf -profile cluster -c /path/to/run1/exwas.conf -stub
-# run an exwas for real
-nextflow run /path/to/pmbb-nf-toolkit-saige-family/workflows/saige_exwas.nf -profile cluster -c /path/to/run1/exwas.conf
-# resume an exwas run if it was interrupted or ran into an error
-nextflow run /path/to/pmbb-nf-toolkit-saige-family/workflows/saige_exwas.nf -profile cluster -c /path/to/run1/exwas.conf -resume
-```
