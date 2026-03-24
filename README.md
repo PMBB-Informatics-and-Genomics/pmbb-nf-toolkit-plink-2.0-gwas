@@ -136,6 +136,8 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
 
 * Cohort Membership
 
+    * `cohort_sets` (Type: File Path)
+
     * 0/1 table with cohorts as columns and participants as rows - 1 indicates that that row’s participant is a member of that column’s cohort
 
     * Type: Data Table
@@ -161,6 +163,8 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
 
 * Phenotypes and Covariates
 
+    * `data_csv` (Type: File Path)
+
     * table with participants as rows and all needed phenotypes and covariates as columns
 
     * Type: Data Table
@@ -184,6 +188,8 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
     ```
 
 * Sex Specific Phenotype List
+
+    * `sex_specific_pheno_file` (Type: File Path)
 
     * A newline-separated list of phenotypes that should be excluded from non-sex-stratified cohorts (e.g., include in AFR_F or AFR_M but exclude from AFR_ALL). Set to 
 
@@ -246,6 +252,10 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
 * `sex_strat_cat_covars` (Type: List)
 
     * Categorical covariates for sex stratified cohorts to ensure model converges
+
+* `cat_covars` (Type: List)
+
+    * Categorical covariates list
 ### PLINK
 
 
@@ -256,6 +266,10 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
 * `plink_chr_prefix` (Type: Plink Fileset Prefix)
 
     * Full path to chromosome-separated plink files - everything before the chromosome number
+
+* `plink_flag` (Type: String)
+
+    * Either 
 ### Post-Processing
 
 
@@ -266,6 +280,26 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
 * `biofilter_close_dist` (Type: Float)
 
     * The distance in bp for something to be considered “close” vs “far” with respect to nearest gene annotation. Value is often 5E4
+
+* `biofilter_script` (Type: File Path)
+
+    * The path to the biofilter script to use. If using the singularity container, should be ‘/app/biofilter.py’
+
+* `biofilter_build` (Type: String)
+
+    * The build to pass to biofilter - can be 19 or 38
+
+* `p_cutoff_summarize` (Type: Float)
+
+    * P-Value Threshold for Summarizing Results at the End, arbitrary p-value threshold for creating a table of results combined with low p-values 
+
+* `biofilter_loki` (Type: File Path)
+
+    * The path to a loki.db file to be used for nearest gene annotation
+
+* `annotate` (Type: Bool (Java: true or false))
+
+    * Whether or not to annotate results with the RSIDs and nearest genes for plotting and summary files.
 ### Pre-Processing
 
 
@@ -300,6 +334,47 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
         1a8,0.0162938047248591,0,0.943836210685299,0,0,0,0,0,0,0,0,0,1,1
         1a9,0.147167262428064,0,0.821221195098089,1,0,0,0,0,0,0,0,0,1,0
         ```
+
+* `cohort_sets` (Type: File Path)
+
+    * A binary csv table in which the columns are the cohorts and the rows are the individuals. A 1 means that individual is a member of the column’s cohort, and a 0 means they aren’t.
+
+    * Corresponding Input File: Cohort Membership
+
+        * 0/1 table with cohorts as columns and participants as rows - 1 indicates that that row’s participant is a member of that column’s cohort
+
+        * Type: Data Table
+
+        * Format: csv
+
+        * File Header:
+
+
+        ```
+        IID,POP1,POP2,POP3
+        1a1,1,0,1
+        1a2,1,0,0
+        1a3,0,0,0
+        1a4,1,0,0
+        1a5,1,0,0
+        1a6,1,1,0
+        1a7,0,0,0
+        1a8,1,0,1
+        1a9,0,1,1
+        
+        ```
+
+* `sex_specific_pheno_file` (Type: File Path)
+
+    * A newline-separated list of phenotypes that should only be included in sex-stratified cohorts (e.g., AFR_F but not AFR_ALL).  Can be safely left as null (defaults to an empty List)
+
+    * Corresponding Input File: Sex Specific Phenotype List
+
+        * A newline-separated list of phenotypes that should be excluded from non-sex-stratified cohorts (e.g., include in AFR_F or AFR_M but exclude from AFR_ALL). Set to 
+
+        * Type: List File
+
+        * Format: txt
 ### QC Options
 
 
@@ -314,12 +389,28 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-plink2-gwas/plink2_gwas.nf \
 * `max_missing_per_sample` (Type: Float)
 
     * Maximum missingness per sample - samples with more missingness than this will be removed
+
+* `max_missing_per_var` (Type: Float)
+
+    * Maximum missingness per variant - variants with more missingness will be removed
 ### Workflow
 
 
 * `sex_strat_cohort_list` (Type: List)
 
     * List of cohorts that are sex stratified
+
+* `quant_pheno_list` (Type: List)
+
+    * Quantitative phenotype list
+
+* `cohort_list` (Type: List)
+
+    * List of cohorts usually ancestry stratified and or sex stratified
+
+* `chromosome_list` (Type: List)
+
+    * This list is used primarily for parallelization of the workflow. List of chromosomes, for testing use smaller chromosomes e.g chromosome_list = ["20", "21", "22"]
 # Configuration and Advanced Workflow Files
 
 ## Example Config File Contents (From Path)

@@ -13,48 +13,61 @@ params.putAll([
     chromosome_list: [21, 22]
 ])
 
+params.related_list = null
+
 MIN_BIN_CASES = params.min_bin_cases
 MIN_QUANT_N = params.min_quant_n
 
-log.info """\
-    NEXTFLOW - DSL2 - PLINK 2.0 GWAS - P I P E L I N E
-    ==================================================
-    run as                  : ${workflow.commandLine}
-    run location            : ${launchDir}
-    started at              : ${workflow.start}
-    python exe              : ${params.my_python}
-
-    Cohorts, Phenotypes, and Chromosomes
-    ==================================================
-    cohort_list             : ${params.cohort_list}
-    bin_pheno_list          : ${params.bin_pheno_list}
-    quant_pheno_list        : ${params.quant_pheno_list}
-    chromosome_list         : ${params.chromosome_list}
-
-    Input Output
-    ==================================================
-    pheno_covar_file        : ${params.data_csv}
-    cohort_sample_file      : ${params.cohort_sets}
-    plink_prefix            : ${params.plink_chr_prefix}
-    plink_suffix            : ${params.plink_chr_suffix}
-    plink_flag              : ${params.plink_flag}
-
-    Plink GWAS QC
-    ==================================================
-    min_bin_cases           : ${MIN_BIN_CASES}
-    min_quant_n             : ${MIN_QUANT_N}
-    min_maf                 : ${params.min_maf}
-    max_missing_per_variant : ${params.max_missing_per_var}
-    min_hardy_p_value       : ${params.hwe_min_pvalue}
-
-    Output Parameters
-    ==================================================
-    p-value filter          : ${params.p_cutoff_summarize}
-    column name map         : ${params.plink2_col_names}
-
-    """.stripIndent()
-
 workflow {
+    log.info([
+        "  NEXTFLOW - DSL2 - PLINK 2.0 GWAS - P I P E L I N E",
+        "  " + "=" * 50,
+        String.format("  %-25s : %s", "run as", workflow.commandLine),
+        String.format("  %-25s : %s", "run location", launchDir),
+        String.format("  %-25s : %s", "started at", workflow.start),
+        String.format("  %-25s : %s", "python exe", params.my_python),
+        String.format("  %-25s : %s", "host", params.host),
+        "",
+        "  Cohorts, Phenotypes, and Chromosomes",
+        "  " + "=" * 50,
+        String.format("  %-25s : %s", "cohort_list", params.cohort_list),
+        String.format("  %-25s : %s", "sex_strat_cohort_list", params.sex_strat_cohort_list),
+        String.format("  %-25s : %s", "bin_pheno_list", params.bin_pheno_list),
+        String.format("  %-25s : %s", "quant_pheno_list", params.quant_pheno_list),
+        String.format("  %-25s : %s", "chromosome_list", params.chromosome_list),
+        "",
+        "  Input / Output",
+        "  " + "=" * 50,
+        String.format("  %-25s : %s", "pheno_covar_file", params.data_csv),
+        String.format("  %-25s : %s", "cohort_sample_file", params.cohort_sets),
+        String.format("  %-25s : %s", "plink_prefix", params.plink_chr_prefix),
+        String.format("  %-25s : %s", "plink_suffix", params.plink_chr_suffix),
+        String.format("  %-25s : %s", "plink_flag", params.plink_flag),
+        String.format("  %-25s : %s", "id_col", params.id_col),
+        String.format("  %-25s : %s", "related_list", params.related_list),
+        "",
+        "  Covariates",
+        "  " + "=" * 50,
+        String.format("  %-25s : %s", "cat_covars", params.cat_covars),
+        String.format("  %-25s : %s", "cont_covars", params.cont_covars),
+        String.format("  %-25s : %s", "sex_strat_cat_covars", params.sex_strat_cat_covars),
+        String.format("  %-25s : %s", "sex_strat_cont_covars", params.sex_strat_cont_covars),
+        String.format("  %-25s : %s", "sex_specific_pheno_file", params.sex_specific_pheno_file),
+        "",
+        "  Plink GWAS QC",
+        "  " + "=" * 50,
+        String.format("  %-25s : %s", "min_bin_cases", MIN_BIN_CASES),
+        String.format("  %-25s : %s", "min_quant_n", MIN_QUANT_N),
+        String.format("  %-25s : %s", "min_maf", params.min_maf),
+        String.format("  %-25s : %s", "max_missing_per_variant", params.max_missing_per_var),
+        String.format("  %-25s : %s", "min_hardy_p_value", params.hwe_min_pvalue),
+        "",
+        "  Output Parameters",
+        "  " + "=" * 50,
+        String.format("  %-25s : %s", "p-value filter", params.p_cutoff_summarize),
+        String.format("  %-25s : %s", "column name map", params.plink2_col_names),
+        String.format("  %-25s : %s", "annotate", params.annotate),
+    ].join("\n"))
     // Channel with tuples of (cohort, phenotype, sumstats file)
     cohort_pheno_sumstats = PLINK2_GWAS()
 }
@@ -76,7 +89,7 @@ def paramToList(param) {
     }
 }
 
-include { BIOFILTER_POSITIONS } from './biofilter_wrapper.nf'
+include { BIOFILTER_POSITIONS } from "${moduleDir}/biofilter_wrapper.nf"
 
 workflow PLINK2_GWAS {
     main:
@@ -96,6 +109,7 @@ workflow PLINK2_GWAS {
         pheno_covar_plots_script = "${moduleDir}/scripts/make_pheno_covar_summary_plots.py"
         merge_plink2_script = "${moduleDir}/scripts/merge_and_filter_plink2_results.py"
         plotting_script = "${moduleDir}/scripts/make_manhattan_qq_plots.py"
+        manifest_script = "${moduleDir}/scripts/generate_plink_manifest.py"
         report_script = "${moduleDir}/scripts/generate_plink_reports.py"
 
         pheno_covar_table = "${params.data_csv}"
@@ -119,7 +133,8 @@ workflow PLINK2_GWAS {
                 (quant_pheno_list.size() == 0) ? '[]' : quant_pheno.toSortedList(),
                 plink_fam,
                 pheno_covar_table, cohort_table,
-                pheno_table_script
+                pheno_table_script,
+                related_file
                 )
         pheno_plots = make_pheno_covar_summary_plots(
                 cohort.collect(),
@@ -227,16 +242,61 @@ workflow PLINK2_GWAS {
         all_plots = pheno_plots.concat(manhattan_qq_plots).collect()
         all_phenos = quant_pheno_list + bin_pheno_list
 
-        json_params = dump_params_to_json(params)
+        run_params = [
+            run_info: [
+                run_as:       workflow.commandLine,
+                run_location: launchDir.toString(),
+                started_at:   workflow.start.toString(),
+                python_exe:   params.my_python,
+                host:         params.host
+            ],
+            cohorts_phenotypes_chromosomes: [
+                cohort_list:          params.cohort_list,
+                sex_strat_cohort_list: params.sex_strat_cohort_list,
+                bin_pheno_list:       params.bin_pheno_list,
+                quant_pheno_list:     params.quant_pheno_list,
+                chromosome_list:      params.chromosome_list
+            ],
+            input_output: [
+                pheno_covar_file:  params.data_csv,
+                cohort_sample_file: params.cohort_sets,
+                plink_prefix:      params.plink_chr_prefix,
+                plink_suffix:      params.plink_chr_suffix,
+                plink_flag:        params.plink_flag,
+                id_col:            params.id_col,
+                related_list:      params.related_list
+            ],
+            covariates: [
+                cat_covars:            params.cat_covars,
+                cont_covars:           params.cont_covars,
+                sex_strat_cat_covars:  params.sex_strat_cat_covars,
+                sex_strat_cont_covars: params.sex_strat_cont_covars,
+                sex_specific_pheno_file: params.sex_specific_pheno_file
+            ],
+            plink_gwas_qc: [
+                min_bin_cases:          MIN_BIN_CASES,
+                min_quant_n:            MIN_QUANT_N,
+                min_maf:                params.min_maf,
+                max_missing_per_variant: params.max_missing_per_var,
+                hwe_min_pvalue:         params.hwe_min_pvalue
+            ],
+            output_parameters: [
+                p_cutoff_summarize: params.p_cutoff_summarize,
+                column_name_map:    params.plink2_col_names,
+                annotate:           params.annotate
+            ]
+        ]
+        json_params = dump_params_to_json(run_params)
 
         // Use the reporting script to generate a .zip folder
         // Containing HTML and source files
         make_results_report(
             all_plots,
             top_hit_table,
-            report_script,
-            all_phenos,
-            params.cohort_list
+            pheno_table,
+            json_params,
+            manifest_script,
+            report_script
         )
 
     emit:
@@ -278,8 +338,8 @@ process make_pheno_summaries {
         path plink_fam
         path pheno_covar_table
         path cohort_table
-
         path(pheno_table_script)
+        path related_file
     output:
         path('pheno_summaries.csv')
 
@@ -292,6 +352,7 @@ process make_pheno_summaries {
           --plinkFam ${plink_fam} \
           --data ${pheno_covar_table} \
           --samples ${cohort_table} \
+          ${params.related_list == null ? '' : '--remove ' + related_file} \
           --id ${params.id_col}
         """
 }
@@ -418,7 +479,13 @@ String get_covar_list_args(String cohort, cohort_cat_covars, cohort_cont_covars)
 }
 
 process call_plink2_logistic {
-    publishDir "${launchDir}/${cohort}/GWAS_Plink/"
+    disk {
+        def fileSizeGb = plink_set[0].size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
+    
+    cpus 16
+    memory { params.host == 'AOU' ? '63GB' : '24GB' }
 
     //this process will perform association test with logistic regression
     input:
@@ -426,6 +493,7 @@ process call_plink2_logistic {
     output:
         tuple  val(cohort), val(pheno), val(chromosome), path("${cohort}.${pheno}.${chromosome}.glm.logistic.hybrid")
     script:
+        use_mem = Math.floor(task.memory.toMega() * 0.85) // 85% of allocated memory in MB
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
@@ -433,6 +501,7 @@ process call_plink2_logistic {
 
         plink2 --glm hide-covar firth-fallback cols=+a1freq,+a1freqcc,+firth \
             --ci 0.95 \
+            --memory ${use_mem} \
             --keep ${sample_list} \
             --maf ${params.min_maf} \
             --geno ${params.max_missing_per_var} \
@@ -454,7 +523,13 @@ process call_plink2_logistic {
 }
 
 process call_plink2_linear {
-    publishDir "${launchDir}/${cohort}/GWAS_Plink/"
+    disk {
+        def fileSizeGb = plink_set[0].size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
+    
+    cpus 16
+    memory { params.host == 'AOU' ? '63GB' : '24GB' }
 
     //this process will perform association test with logistic regression
     input:
@@ -462,12 +537,14 @@ process call_plink2_linear {
     output:
         tuple  val(cohort), val(pheno), val(chromosome), path("${cohort}.${pheno}.${chromosome}.glm.linear")
     script:
+        use_mem = Math.floor(task.memory.toMega() * 0.85) // 85% of allocated memory in MB
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
         """
         plink2 --glm hide-covar cols=+a1freq \
             --ci 0.95 \
+            --memory ${use_mem} \
             --keep ${sample_list} \
             --maf ${params.min_maf} \
             --geno ${params.max_missing_per_var} \
@@ -489,6 +566,13 @@ process call_plink2_linear {
 
 process merge_and_filter_plink2_output {
     publishDir "${launchDir}/${cohort}/Sumstats/"
+    maxRetries 5 // Retry up to 3 times
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' } // Retry on OOM-related exit codes
+    memory {
+        def base_mem = 63.GB
+        def attempt_mem = base_mem * task.attempt
+        return attempt_mem
+    }
 
     input:
         // variables
@@ -550,6 +634,14 @@ process make_biofilter_positions_input {
 process plot_plink_results_with_annot {
     publishDir "${launchDir}/Plots/"
 
+    maxRetries 5 // Retry up to 3 times
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' } // Retry on OOM-related exit codes
+    memory {
+        def base_mem = 63.GB
+        def attempt_mem = base_mem * task.attempt
+        return attempt_mem
+    }
+
     input:
         tuple val(cohort), val(pheno), path(sumstats), val(data_nickname), path(biofilter_annots)
         path(plotting_script)
@@ -577,6 +669,14 @@ process plot_plink_results_with_annot {
 
 process plot_plink_results {
     publishDir "${launchDir}/Plots/"
+
+    maxRetries 5 // Retry up to 3 times
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' } // Retry on OOM-related exit codes
+    memory {
+        def base_mem = 63.GB
+        def attempt_mem = base_mem * task.attempt
+        return attempt_mem
+    }
 
     input:
         tuple val(cohort), val(pheno), path(sumstats)
@@ -716,27 +816,30 @@ process dump_params_to_json {
 
 process make_results_report {
     publishDir "${launchDir}", mode: 'copy'
-    
+
     input:
         path all_plots, stageAs: 'Plots/*'
         path top_hits_table
+        path pheno_summaries
+        path params_json
+        path manifest_script
         path report_script
-        val all_pheno_list
-        val all_cohort_list
     output:
-        path('Plink_2.0_GWAS_Report.tar.gz')
+        path('Plink_2.0_GWAS_Report.zip')
     shell:
         """
-        ${params.my_python} ${report_script} \
-            --phenotypes ${all_pheno_list.join(' ')} \
-            --cohorts ${all_cohort_list.join(' ')} \
+        ${params.my_python} ${manifest_script} \
+            --params_json ${params_json} \
+            --pheno_summaries ${pheno_summaries} \
             --top_hits_csv ${top_hits_table} \
-            --output_dir Plink_2.0_GWAS_Report
+            --plots_dir Plots/
 
-        tar -czvf Plink_2.0_GWAS_Report.tar.gz Plink_2.0_GWAS_Report/
+        ${params.my_python} ${report_script} \
+            --manifest results_manifest.json \
+            --output_zip Plink_2.0_GWAS_Report.zip
         """
     stub:
         '''
-        touch Plink_2.0_GWAS_Report.tar.gz
+        touch Plink_2.0_GWAS_Report.zip
         '''
 }
